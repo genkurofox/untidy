@@ -479,10 +479,14 @@ _SQL_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 
 
 def read_sql(path: Path) -> Iterator[Chunk]:
+    import bisect
     source = path.read_text(encoding="utf-8", errors="replace")
+    # Precompute newline offsets so per-match line lookup is O(log n) instead
+    # of O(n) — the naive count("\n", 0, offset) was O(n²) on big files.
+    nl = [i for i, c in enumerate(source) if c == "\n"]
 
     def line_of(offset: int) -> int:
-        return source.count("\n", 0, offset) + 1
+        return bisect.bisect_left(nl, offset) + 1
 
     for m in _SQL_STRING.finditer(source):
         inner = m.group(1).replace("''", "'")

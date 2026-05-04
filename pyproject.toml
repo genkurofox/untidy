@@ -9,7 +9,6 @@ description = "Offline CLI that scans files for sensitive data."
 requires-python = ">=3.10"
 dependencies = [
     "openpyxl>=3.1",
-    "sqlparse>=0.4",
     "pdfminer.six>=20221105",
     "python-docx>=1.0",
     "PyYAML>=6.0",
