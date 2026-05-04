@@ -13,7 +13,7 @@ from .scanner import DEFAULT_EXTS, scan
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="untidy",
-        description="Offline scanner for sensitive data in CSV, Excel, and T-SQL files.",
+        description="Offline scanner for sensitive data in CSV, Excel, T-SQL, PDF, DOCX, JSON, and text files.",
     )
     p.add_argument("--version", action="version", version=f"untidy {__version__}")
 
@@ -50,6 +50,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit raw matches instead of masked values",
     )
+    scan_cmd.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero if any file failed to read (don't conflate read errors with 'no findings')",
+    )
     scan_cmd.add_argument("--verbose", action="store_true")
 
     git_cmd = sub.add_parser(
@@ -78,6 +83,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default="low",
     )
     git_cmd.add_argument("--no-mask", action="store_true")
+    git_cmd.add_argument("--strict", action="store_true")
     git_cmd.add_argument("--verbose", action="store_true")
 
     return p
@@ -99,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
 
     threshold = _CONFIDENCE_RANK[args.min_confidence]
     exts = _parse_exts(args.include_ext)
+    errors: list[str] = []
 
     if args.cmd == "scan":
         for p in args.paths:
@@ -112,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
             max_size_mb=args.max_size_mb,
             mask=not args.no_mask,
             verbose=args.verbose,
+            errors_out=errors,
         )
     elif args.cmd == "scan-git":
         if not args.repo.exists():
@@ -127,6 +135,7 @@ def main(argv: list[str] | None = None) -> int:
             mask=not args.no_mask,
             verbose=args.verbose,
             max_commits=args.max_commits,
+            errors_out=errors,
         )
     else:
         return 2
@@ -135,6 +144,10 @@ def main(argv: list[str] | None = None) -> int:
 
     count = write_csv(findings, args.output)
     print(f"wrote {count} finding(s) to {args.output}", file=sys.stderr)
+    if errors:
+        print(f"{len(errors)} file(s) had read errors", file=sys.stderr)
+        if args.strict:
+            return 2
     return 1 if count else 0
 
 

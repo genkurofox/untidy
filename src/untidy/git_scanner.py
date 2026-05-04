@@ -111,6 +111,7 @@ def scan_git_deleted(
     mask: bool = True,
     verbose: bool = False,
     max_commits: Optional[int] = None,
+    errors_out: list[str] | None = None,
 ) -> Iterator[Finding]:
     if not is_git_repo(repo):
         raise RuntimeError(f"not a git repository: {repo}")
@@ -163,10 +164,10 @@ def scan_git_deleted(
                         column_header=finding.column_header,
                     )
         except Exception as e:
-            print(
-                f"error scanning {commit[:10]} {path}: {e}",
-                file=sys.stderr,
-            )
+            msg = f"error scanning {commit[:10]} {path}: {type(e).__name__}: {e}"
+            print(msg, file=sys.stderr)
+            if errors_out is not None:
+                errors_out.append(msg)
         finally:
             try:
                 tmp_path.unlink()

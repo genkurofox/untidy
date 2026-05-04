@@ -31,6 +31,13 @@ HEADER_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"diagnosis|icd.?10|icd.?9"), "DIAGNOSIS"),
     (re.compile(r"insurance|policy.*num"), "INSURANCE"),
     (re.compile(r"credit.*card|(^|_)cc.*num|card.*number"), "CREDIT_CARD"),
+    (re.compile(r"(^|_)iban($|_)|bank.*account|account.*number"), "IBAN"),
+    (re.compile(r"(^|_)swift($|_)|bic.*code"), "SWIFT"),
+    (re.compile(r"passport"), "PASSPORT"),
+    (re.compile(r"driver.?s?.?licen[sc]e|(^|_)dl.?(num|number|no)?($|_)"), "DRIVERS_LICENSE"),
+    (re.compile(r"(^|_)api.?key($|_)|secret.?key|access.?token|auth.?token"), "SECRET"),
+    (re.compile(r"(^|_)password($|_)|passwd|pwd"), "PASSWORD"),
+    (re.compile(r"routing.?(num|number|no)"), "ROUTING_NUMBER"),
 ]
 
 

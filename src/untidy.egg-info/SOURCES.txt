@@ -20,11 +20,17 @@ src/untidy/detectors/patterns.py
 src/untidy/readers/__init__.py
 src/untidy/readers/base.py
 src/untidy/readers/csv_reader.py
+src/untidy/readers/docx_reader.py
 src/untidy/readers/excel_reader.py
+src/untidy/readers/json_reader.py
+src/untidy/readers/pdf_reader.py
 src/untidy/readers/sql_reader.py
 src/untidy/readers/text_reader.py
 tests/test_cli.py
 tests/test_detectors.py
 tests/test_git_scanner.py
+tests/test_new_detectors.py
+tests/test_new_readers.py
 tests/test_readers.py
 tests/test_scanner.py
+tests/test_strict_flag.py

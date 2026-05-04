@@ -37,3 +37,21 @@ def routing_valid(digits: str) -> bool:
         + 1 * (d[2] + d[5] + d[8])
     )
     return checksum % 10 == 0
+
+
+def iban_valid(s: str) -> bool:
+    s = "".join(s.split()).upper()
+    if len(s) < 15 or len(s) > 34:
+        return False
+    if not (s[:2].isalpha() and s[2:4].isdigit()):
+        return False
+    rearranged = s[4:] + s[:4]
+    expanded = []
+    for ch in rearranged:
+        if ch.isdigit():
+            expanded.append(ch)
+        elif ch.isalpha():
+            expanded.append(str(ord(ch) - 55))
+        else:
+            return False
+    return int("".join(expanded)) % 97 == 1

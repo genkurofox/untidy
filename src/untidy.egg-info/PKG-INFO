@@ -1,9 +1,12 @@
 Metadata-Version: 2.4
 Name: untidy
 Version: 0.1.0
-Summary: Offline CLI that scans CSV, Excel, and T-SQL files for sensitive data.
+Summary: Offline CLI that scans files for sensitive data.
 Requires-Python: >=3.10
 Requires-Dist: openpyxl>=3.1
 Requires-Dist: sqlparse>=0.4
+Requires-Dist: pdfminer.six>=20221105
+Requires-Dist: python-docx>=1.0
+Requires-Dist: PyYAML>=6.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7; extra == "dev"

@@ -41,6 +41,92 @@ def detect(chunk: Chunk, mask: bool = True) -> list[Finding]:
             )
         )
 
+    # Run inline (keyword-gated) detectors FIRST so they win span-dedup against
+    # the more generic value detectors below — DOB > DATE, PASSPORT > digit run.
+    for entity, regex, validator, rule, confidence in patterns.INLINE_DETECTORS:
+        for m in regex.finditer(text):
+            value = m.group(1)
+            value_span = m.span(1)
+            if value_span in seen_spans:
+                continue
+            if validator and not validator(value):
+                continue
+            seen_spans.add(value_span)
+            findings.append(
+                Finding(
+                    file_path=chunk.file_path,
+                    file_type=chunk.file_type,
+                    location=chunk.location,
+                    entity_type=entity,
+                    detection_rule=rule,
+                    confidence=confidence,
+                    match_snippet=_snippet(value, mask),
+                    column_header=chunk.column_header,
+                )
+            )
+
+    # Inline NAME / ADDRESS / DOB free-text patterns. Same trick as MRN_INLINE.
+    for entity, regex, rule, confidence in patterns.NAME_ADDRESS_DOB_INLINE:
+        for m in regex.finditer(text):
+            value = m.group(1)
+            value_span = m.span(1)
+            if value_span in seen_spans:
+                continue
+            seen_spans.add(value_span)
+            findings.append(
+                Finding(
+                    file_path=chunk.file_path,
+                    file_type=chunk.file_type,
+                    location=chunk.location,
+                    entity_type=entity,
+                    detection_rule=rule,
+                    confidence=confidence,
+                    match_snippet=_snippet(value, mask),
+                    column_header=chunk.column_header,
+                )
+            )
+
+    # MRN via inline keyword context: catches ad-hoc references in SQL comments
+    # or free text like "-- patient John Doe, MRN 12345678".
+    for m in patterns.MRN_INLINE_RE.finditer(text):
+        digits = m.group(1)
+        digit_span = m.span(1)
+        if digit_span in seen_spans:
+            continue
+        seen_spans.add(digit_span)
+        findings.append(
+            Finding(
+                file_path=chunk.file_path,
+                file_type=chunk.file_type,
+                location=chunk.location,
+                entity_type="MRN",
+                detection_rule="regex+inline_keyword",
+                confidence="high",
+                match_snippet=_snippet(digits, mask),
+                column_header=chunk.column_header,
+            )
+        )
+
+    # MRN via tabular header context: every digit run in the cell.
+    if header_entity in {"MRN", "PATIENT_ID"}:
+        for m in patterns.MRN_PATTERN.finditer(text):
+            span = m.span()
+            if span in seen_spans:
+                continue
+            seen_spans.add(span)
+            findings.append(
+                Finding(
+                    file_path=chunk.file_path,
+                    file_type=chunk.file_type,
+                    location=chunk.location,
+                    entity_type="MRN",
+                    detection_rule="regex+header_context",
+                    confidence="high",
+                    match_snippet=_snippet(m.group(0), mask),
+                    column_header=chunk.column_header,
+                )
+            )
+
     cc_suppressed = headers.suppresses_credit_card(chunk.column_header)
 
     for entity, regex, validator, rule, confidence in patterns.VALUE_DETECTORS:
@@ -66,48 +152,6 @@ def detect(chunk: Chunk, mask: bool = True) -> list[Finding]:
                     column_header=chunk.column_header,
                 )
             )
-
-    # MRN via tabular header context: every digit run in the cell.
-    if header_entity in {"MRN", "PATIENT_ID"}:
-        for m in patterns.MRN_PATTERN.finditer(text):
-            span = m.span()
-            if span in seen_spans:
-                continue
-            seen_spans.add(span)
-            findings.append(
-                Finding(
-                    file_path=chunk.file_path,
-                    file_type=chunk.file_type,
-                    location=chunk.location,
-                    entity_type="MRN",
-                    detection_rule="regex+header_context",
-                    confidence="high",
-                    match_snippet=_snippet(m.group(0), mask),
-                    column_header=chunk.column_header,
-                )
-            )
-
-    # MRN via inline keyword context: catches ad-hoc references in SQL comments
-    # or free text like "-- patient John Doe, MRN 12345678".
-    for m in patterns.MRN_INLINE_RE.finditer(text):
-        digits = m.group(1)
-        # Deduplicate against digits already captured by header-context pass.
-        digit_span = m.span(1)
-        if digit_span in seen_spans:
-            continue
-        seen_spans.add(digit_span)
-        findings.append(
-            Finding(
-                file_path=chunk.file_path,
-                file_type=chunk.file_type,
-                location=chunk.location,
-                entity_type="MRN",
-                detection_rule="regex+inline_keyword",
-                confidence="high",
-                match_snippet=_snippet(digits, mask),
-                column_header=chunk.column_header,
-            )
-        )
 
     return findings
 

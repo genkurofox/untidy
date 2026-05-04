@@ -7,7 +7,15 @@ from typing import Callable, Iterable, Iterator
 
 from .detectors.base import detect
 from .models import Chunk, Finding
-from .readers import csv_reader, excel_reader, sql_reader, text_reader
+from .readers import (
+    csv_reader,
+    docx_reader,
+    excel_reader,
+    json_reader,
+    pdf_reader,
+    sql_reader,
+    text_reader,
+)
 
 ReaderFn = Callable[[Path], Iterator[Chunk]]
 
@@ -18,6 +26,12 @@ READERS: dict[str, ReaderFn] = {
     ".txt": text_reader.read,
     ".log": text_reader.read,
     ".md": text_reader.read,
+    ".pdf": pdf_reader.read,
+    ".docx": docx_reader.read,
+    ".json": json_reader.read,
+    ".ndjson": json_reader.read,
+    ".yaml": json_reader.read,
+    ".yml": json_reader.read,
 }
 
 DEFAULT_EXTS = tuple(READERS.keys())
@@ -62,7 +76,11 @@ def scan(
     max_size_mb: int = 200,
     mask: bool = True,
     verbose: bool = False,
+    errors_out: list[str] | None = None,
 ) -> Iterator[Finding]:
+    """Yield findings across roots. If errors_out is provided, per-file read
+    errors append to it (the message includes the path) — callers can use this
+    to distinguish "no findings" from "couldn't read some files"."""
     max_bytes = max_size_mb * 1024 * 1024
     for path in _iter_files(roots, include_ext, excludes, max_bytes, verbose):
         reader = READERS.get(path.suffix.lower())
@@ -74,4 +92,10 @@ def scan(
             for chunk in reader(path):
                 yield from detect(chunk, mask=mask)
         except Exception as e:  # keep scanning other files on per-file errors
-            print(f"error scanning {path}: {e}", file=sys.stderr)
+            # Always include the exception class — some libraries raise
+            # exceptions with empty messages, which used to produce a useless
+            # "error scanning <path>:" line.
+            msg = f"error scanning {path}: {type(e).__name__}: {e}"
+            print(msg, file=sys.stderr)
+            if errors_out is not None:
+                errors_out.append(msg)
