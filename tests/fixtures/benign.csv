@@ -1,0 +1,4 @@
+sku,title,price,in_stock
+SKU-1,Widget,9.99,true
+SKU-2,Gadget,14.50,true
+SKU-3,Gizmo,7.00,false

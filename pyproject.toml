@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "untidy"
+version = "0.1.0"
+description = "Offline CLI that scans CSV, Excel, and T-SQL files for sensitive data."
+requires-python = ">=3.10"
+dependencies = [
+    "openpyxl>=3.1",
+    "sqlparse>=0.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+untidy = "untidy.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

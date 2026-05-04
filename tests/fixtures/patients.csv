@@ -1,0 +1,4 @@
+patient_id,first_name,last_name,dob,ssn,phone,email,address,zip,notes
+P001,John,Doe,1980-03-15,123-45-6789,(415) 555-0199,john.doe@example.com,123 Market St,94103,routine checkup
+P002,Jane,Smith,1975-07-22,234-56-7890,415.555.0142,jane.s@example.org,456 Mission Ave,94105,diabetes follow-up
+P003,Alex,Ng,1992-11-03,345-67-8901,+1-415-555-0188,alex.ng@example.net,789 Howard St,94103,no concerns
