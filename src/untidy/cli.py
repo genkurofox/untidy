@@ -24,7 +24,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         default=Path("untidy-findings.csv"),
-        help="CSV report path (default: untidy-findings.csv)",
+        help="Masked CSV report path (default: untidy-findings.csv)",
+    )
+    scan_cmd.add_argument(
+        "--unmasked-output",
+        type=Path,
+        default=None,
+        help="Optional second CSV with raw (unmasked) match values for triage. "
+             "Treat this file as PHI/PII and store accordingly.",
     )
     scan_cmd.add_argument(
         "--exclude",
@@ -48,7 +55,7 @@ def _build_parser() -> argparse.ArgumentParser:
     scan_cmd.add_argument(
         "--no-mask",
         action="store_true",
-        help="Emit raw matches instead of masked values",
+        help="Emit raw matches in --output instead of masked values",
     )
     scan_cmd.add_argument(
         "--strict",
@@ -64,6 +71,10 @@ def _build_parser() -> argparse.ArgumentParser:
     git_cmd.add_argument("repo", type=Path, help="Path to the git repository")
     git_cmd.add_argument(
         "--output", type=Path, default=Path("untidy-findings.csv"),
+    )
+    git_cmd.add_argument(
+        "--unmasked-output", type=Path, default=None,
+        help="Optional second CSV with raw match values for triage.",
     )
     git_cmd.add_argument(
         "--include-ext",
@@ -112,12 +123,14 @@ def main(argv: list[str] | None = None) -> int:
             if not p.exists():
                 print(f"error: path does not exist: {p}", file=sys.stderr)
                 return 2
+        # Always scan with mask=False so the raw value is preserved on each
+        # Finding; masking is then applied (or not) per-output at write time.
         source = scan(
             roots=args.paths,
             include_ext=exts,
             excludes=args.exclude,
             max_size_mb=args.max_size_mb,
-            mask=not args.no_mask,
+            mask=False,
             verbose=args.verbose,
             errors_out=errors,
         )
@@ -132,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
             repo=args.repo,
             include_ext=tuple(exts),
             max_size_mb=args.max_size_mb,
-            mask=not args.no_mask,
+            mask=False,
             verbose=args.verbose,
             max_commits=args.max_commits,
             errors_out=errors,
@@ -142,8 +155,24 @@ def main(argv: list[str] | None = None) -> int:
 
     findings = [f for f in source if _CONFIDENCE_RANK[f.confidence] >= threshold]
 
-    count = write_csv(findings, args.output)
-    print(f"wrote {count} finding(s) to {args.output}", file=sys.stderr)
+    primary_masked = not args.no_mask
+    count = write_csv(findings, args.output, mask=primary_masked)
+    label = "masked" if primary_masked else "unmasked"
+    print(f"wrote {count} finding(s) to {args.output} ({label})", file=sys.stderr)
+
+    if args.unmasked_output is not None:
+        if args.unmasked_output == args.output:
+            print(
+                "error: --unmasked-output must differ from --output",
+                file=sys.stderr,
+            )
+            return 2
+        write_csv(findings, args.unmasked_output, mask=False)
+        print(
+            f"wrote {count} finding(s) to {args.unmasked_output} (unmasked — contains PHI/PII)",
+            file=sys.stderr,
+        )
+
     if errors:
         print(f"{len(errors)} file(s) had read errors", file=sys.stderr)
         if args.strict:

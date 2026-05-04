@@ -824,17 +824,22 @@ REPORT_COLUMNS = [
 ]
 
 
-def write_csv(findings: Iterable[Finding], output_path: Path) -> int:
+def write_csv(
+    findings: Iterable[Finding], output_path: Path, mask: bool = True
+) -> int:
+    """Write findings to CSV. mask=True applies _mask() to match_snippet at
+    write time, so a single scan can emit both masked and unmasked reports."""
     count = 0
     with output_path.open("w", encoding="utf-8", newline="") as fh:
         w = _csv.DictWriter(fh, fieldnames=REPORT_COLUMNS)
         w.writeheader()
         for f in findings:
+            snippet = _mask(f.match_snippet) if mask else f.match_snippet
             w.writerow({
                 "file_path": f.file_path, "file_type": f.file_type,
                 "location": f.location, "entity_type": f.entity_type,
                 "detection_rule": f.detection_rule, "confidence": f.confidence,
-                "match_snippet": f.match_snippet,
+                "match_snippet": snippet,
                 "column_header": f.column_header or "",
             })
             count += 1
@@ -865,12 +870,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("scan", help="Scan paths for sensitive data")
     s.add_argument("paths", nargs="+", type=Path)
-    s.add_argument("--output", type=Path, default=Path("untidy-findings.csv"))
+    s.add_argument("--output", type=Path, default=Path("untidy-findings.csv"),
+                   help="Masked CSV report path")
+    s.add_argument("--unmasked-output", type=Path, default=None,
+                   help="Optional second CSV with raw match values for triage. "
+                        "Treat this file as PHI/PII.")
     s.add_argument("--exclude", action="append", default=[], metavar="GLOB")
     s.add_argument("--include-ext", default=",".join(DEFAULT_EXTS))
     s.add_argument("--max-size-mb", type=int, default=200)
     s.add_argument("--min-confidence", choices=["low", "medium", "high"], default="low")
-    s.add_argument("--no-mask", action="store_true")
+    s.add_argument("--no-mask", action="store_true",
+                   help="Emit raw matches in --output instead of masked values")
     s.add_argument("--strict", action="store_true",
                    help="Exit non-zero if any file failed to read")
     s.add_argument("--verbose", action="store_true")
@@ -878,6 +888,8 @@ def _build_parser() -> argparse.ArgumentParser:
     g = sub.add_parser("scan-git", help="Scan git history for deleted sensitive files")
     g.add_argument("repo", type=Path)
     g.add_argument("--output", type=Path, default=Path("untidy-findings.csv"))
+    g.add_argument("--unmasked-output", type=Path, default=None,
+                   help="Optional second CSV with raw match values for triage.")
     g.add_argument("--include-ext", default=",".join(DEFAULT_EXTS))
     g.add_argument("--max-size-mb", type=int, default=200)
     g.add_argument("--max-commits", type=int, default=None)
@@ -902,7 +914,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 return 2
         source = scan(
             roots=args.paths, include_ext=exts, excludes=args.exclude,
-            max_size_mb=args.max_size_mb, mask=not args.no_mask,
+            max_size_mb=args.max_size_mb, mask=False,
             verbose=args.verbose, errors_out=errors,
         )
     elif args.cmd == "scan-git":
@@ -914,7 +926,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             return 2
         source = scan_git_deleted(
             repo=args.repo, include_ext=tuple(exts),
-            max_size_mb=args.max_size_mb, mask=not args.no_mask,
+            max_size_mb=args.max_size_mb, mask=False,
             verbose=args.verbose, max_commits=args.max_commits,
             errors_out=errors,
         )
@@ -922,8 +934,23 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 2
 
     findings = [f for f in source if _CONFIDENCE_RANK[f.confidence] >= threshold]
-    count = write_csv(findings, args.output)
-    print(f"wrote {count} finding(s) to {args.output}", file=sys.stderr)
+
+    primary_masked = not args.no_mask
+    count = write_csv(findings, args.output, mask=primary_masked)
+    label = "masked" if primary_masked else "unmasked"
+    print(f"wrote {count} finding(s) to {args.output} ({label})", file=sys.stderr)
+
+    if args.unmasked_output is not None:
+        if args.unmasked_output == args.output:
+            print("error: --unmasked-output must differ from --output",
+                  file=sys.stderr)
+            return 2
+        write_csv(findings, args.unmasked_output, mask=False)
+        print(
+            f"wrote {count} finding(s) to {args.unmasked_output} (unmasked — contains PHI/PII)",
+            file=sys.stderr,
+        )
+
     if errors:
         print(f"{len(errors)} file(s) had read errors", file=sys.stderr)
         if args.strict:

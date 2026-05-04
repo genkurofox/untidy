@@ -37,14 +37,23 @@ untidy scan-git REPO_PATH [options]
 
 | flag | default | description |
 |------|---------|-------------|
-| `--output` | `untidy-findings.csv` | Where to write the CSV report |
+| `--output` | `untidy-findings.csv` | Masked CSV report (safe to share) |
+| `--unmasked-output` | (none) | Optional second CSV with raw match values for triage. Treat this file as PHI/PII. |
 | `--exclude GLOB` | (none) | Skip paths matching this glob. Repeatable. |
 | `--include-ext` | all supported types | Comma-separated extensions to scan |
 | `--max-size-mb` | `200` | Skip files larger than this |
 | `--min-confidence` | `low` | Drop findings below this confidence (`low`/`medium`/`high`) |
-| `--no-mask` | off | Emit raw matches instead of masked values |
+| `--no-mask` | off | Emit raw matches in `--output` instead of masked values |
 | `--strict` | off | Exit non-zero if any file failed to read (don't conflate read errors with "no findings") |
 | `--verbose` | off | Per-file progress on stderr |
+
+To produce both reports in one pass:
+
+```
+untidy scan PATH --output findings.csv --unmasked-output findings.raw.csv
+```
+
+The scan runs once; the masked report is safe to share, the unmasked one contains the actual matched values for verification.
 
 `scan-git` additionally supports `--max-commits N` to cap how many deletion events are scanned, and omits `--exclude` (history entries aren't paths on disk).
 
